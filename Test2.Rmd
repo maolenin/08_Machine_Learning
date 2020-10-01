@@ -1,0 +1,169 @@
+---
+title: "Test2"
+author: "Mao Soldevilla"
+date: "1/10/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Loading Libraries
+```{r libraries, comment=FALSE}
+library(caret)
+library(ggplot2)
+library(AppliedPredictiveModeling)
+```
+
+## 1. Load the Alzheimer's disease data using the commands:
+
+```{r one}
+library(AppliedPredictiveModeling)
+data(AlzheimerDisease)
+```
+
+Which of the following commands will create non-overlapping training and test sets with about 50% of the observations assigned to each?
+
+```{r}
+adData = data.frame(diagnosis,predictors)
+testIndex = createDataPartition(diagnosis, p = 0.50,list=FALSE)
+training = adData[-testIndex,]
+testing = adData[testIndex,]
+```
+
+## 2. Load the cement data using the commands:
+
+```{r two}
+library(AppliedPredictiveModeling)
+data(concrete)
+library(caret)
+set.seed(1000)
+inTrain = createDataPartition(mixtures$CompressiveStrength, p = 3/4)[[1]]
+training = mixtures[ inTrain,]
+testing = mixtures[-inTrain,]
+```
+
+Make a plot of the outcome (CompressiveStrength) versus the index of the samples. Color by each of the variables in the data set (you may find the cut2() function in the Hmisc package useful for turning continuous covariates into factors). What do you notice in these plots?
+
+```{r plotting2}
+# indexing
+index <- seq_along(1:nrow(training))
+
+# Checking the correlation with vars
+featurePlot(x = training[, 1:8], y = training$CompressiveStrength, plot = "pairs")
+
+# plotting by index and coloring with others vars according the question
+g <- ggplot(training, aes(index, CompressiveStrength)) + geom_point(aes(color = FlyAsh))
+g
+
+g <- ggplot(training, aes(index, CompressiveStrength)) + geom_point(aes(color = Age))
+g
+```
+There is no correlation the compressiveStrength vs FlyAsh or Age, maybe some variable is missing.
+
+## 3. Load the cement data using the commands:
+
+```{r}
+library(AppliedPredictiveModeling)
+data(concrete)
+library(caret)
+set.seed(1000)
+inTrain = createDataPartition(mixtures$CompressiveStrength, p = 3/4)[[1]]
+training = mixtures[ inTrain,]
+testing = mixtures[-inTrain,]
+```
+
+Make a histogram and confirm the SuperPlasticizer variable is skewed. Normally you might use the log transform to try to make the data more symmetric. Why would that be a poor choice for this variable?
+
+```{r}
+str(training)
+ggplot(training, aes(Superplasticizer)) + geom_histogram()
+```
+
+According this plot we can see that there are a lot of values in Zero.
+
+Reviewing the data
+```{r}
+summary(training$Superplasticizer)
+summary(concrete$Superplasticizer)
+log10(0)
+table(training[training$Superplasticizer == 0, 5])
+```
+
+
+There are values of zero so when you take the log() transform those values will be -Inf.
+
+## 4. Load the Alzheimer's disease data using the commands:
+
+```{r 4.1}
+library(caret)
+library(AppliedPredictiveModeling)
+set.seed(3433)
+data(AlzheimerDisease)
+adData = data.frame(diagnosis,predictors)
+# Adding this line in order to subset the variables
+adData = adData[, c("diagnosis", grep(pattern = "^IL", names(adData), value = TRUE))]
+# adData = adData[, grep(pattern = "^IL", names(adData), value = TRUE)]
+# Continue
+inTrain = createDataPartition(adData$diagnosis, p = 3/4)[[1]]
+training = adData[ inTrain, ]
+testing = adData[-inTrain, ]
+str(training[, -1])
+```
+
+Find all the predictor variables in the training set that begin with IL. Perform principal components on these variables with the preProcess() function from the caret package. Calculate the number of principal components needed to capture 90% of the variance. How many are there?
+
+Analyzing the data with Preprocess
+```{r 4.2}
+preProc <- preProcess(training[, -1], method = c("pca"), thresh = 0.9)
+print(preProc)
+transformed <- predict(preProc, training)
+summary(transformed)
+#preProc$rotation
+```
+according the results, there are 10 Principal components
+
+## 5. Load the Alzheimer's disease data using the commands:
+
+```{r}
+library(caret)
+library(AppliedPredictiveModeling)
+set.seed(3433)
+data(AlzheimerDisease)
+adData = data.frame(diagnosis,predictors)
+# Adding this line in order to subset the variables
+adData = adData[, c("diagnosis", grep(pattern = "^IL", names(adData), value = TRUE))]
+# Continue
+inTrain = createDataPartition(adData$diagnosis, p = 3/4)[[1]]
+training = adData[ inTrain,]
+testing = adData[-inTrain,]
+str(training)
+```
+
+Create a training data set consisting of only the predictors with variable names beginning with IL and the diagnosis. Build two predictive models, one using the predictors as they are and one using PCA with principal components explaining 80% of the variance in the predictors. Use method="glm" in the train function.
+
+What is the accuracy of each method in the test set? Which is more accurate?
+
+Train the data with the first model
+```{r with train}
+modelFit1 <- train(diagnosis ~ ., method = "glm", data = training)
+predictions <- predict(modelFit1, newdata = testing)
+Acc1 <- confusionMatrix(predictions, testing$diagnosis)
+Acc1
+```
+
+```{r withpca}
+modelFit2 <- train(diagnosis ~ .,
+                  method = "glm",
+                  preProcess = "pca",
+                  data = training, 
+                  trControl = trainControl(preProcOptions = list(thresh = 0.8)))
+Acc2 <- confusionMatrix(testing$diagnosis, predict(modelFit2, testing))
+Acc2
+names(Acc2)
+```
+
+The accuracy are `r Acc1$overall[1]` and `r Acc2$overall[1]` respectively.
+
+
