@@ -1,0 +1,148 @@
+---
+title: "Personal Activity"
+author: "Mao Soldevilla"
+date: "7/10/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Overview
+
+In this project, I will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: <http://groupware.les.inf.puc-rio.br/har> (see the section on the Weight Lifting Exercise Dataset).
+
+### Data
+The training data for this project are available here: <https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv>
+
+The test data are available here:
+
+<https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv>
+
+The data for this project come from this source: <http://groupware.les.inf.puc-rio.br/har>.
+
+## 1. Data Exploratory
+
+### Loading Lybraries
+
+```{r libraries, cache = TRUE, comment=FALSE}
+library(lattice)
+library(ggplot2)
+library(caret)
+library(AppliedPredictiveModeling)
+library(dplyr)
+```
+### Loading data
+```{r data_exploratory, cache = TRUE}
+# Training
+url1 <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+training <- read.csv(url1)
+# Testing
+url2 <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+testing <- read.csv(url2)
+dim(training); dim(testing)
+```
+Both are the same size of variables
+
+### Cleaning vars with NAs.
+In order to avoid bias, is better to delete vars with a high rate of **NA** values.
+```{r, cache=TRUE}
+delvarNA <- which(colMeans(is.na(training)) > 0)
+training <- training[ , -delvarNA]
+testing <- testing[ , -delvarNA]
+```
+
+### Cleaning vars with voids data
+In order to avoid bias, is better to delete vars with a high rate of **void** values.
+```{r, cache=TRUE}
+delvoid <- which(colMeans(training == "") > 0)
+training <- training[ , -delvoid]
+testing <- testing[ , -delvoid]
+```
+
+### Cleaning non important vars.
+It does not give important information the dates, delete dates vars
+```{r, cache=TRUE}
+# Deleting times
+training <- training[, -c(1:7)]
+testing <- testing[, -c(1:7)]
+```
+
+### Cleaning total vars.
+In order to avoid bias, is better to delete vars with a high rate of **total** values.
+```{r, cache=TRUE}
+# Deleting totals
+training <- select(training, -c(grep("^total", names(training))))
+testing <- select(testing, -c(grep("^total", names(testing))))
+dim(training)
+```
+
+### Training ad fitting
+
+Now with a clean data is possible to train, for then we split the data into train for training the model and valid for use in the validation of the model
+```{r training, cache=TRUE}
+inTrain = createDataPartition(y = training$classe, p = 0.7, list = FALSE)
+train <- training[inTrain, ]
+valid <- training[-inTrain, ]
+```
+
+We will try to find the best model testing some methods saw in the course that are **Random Forest**, **Gradient Boosted Trees** and **Linear Discriminant Analyses**
+
+#### Setting up control for training to use 3-fold cross validation.
+```{r control, cache = TRUE}
+control <- trainControl(method = "cv", number = 3, verboseIter = FALSE)
+```
+
+#### Random Forest
+```{r rf,cache=TRUE}
+fitModrf <- train(classe ~ ., data = train, method = "rf", trControl = control)
+predrf <- predict(fitModrf, valid)
+cmrf <- confusionMatrix(predrf, factor(valid$classe))
+cmrf
+```
+
+#### Gradient Boosted Trees.
+```{r gbm, cache = TRUE}
+fitModgbm <- train(classe ~ ., data = train, method = "gbm", trControl = control, verbose = FALSE)
+predgbm <- predict(fitModgbm, valid)
+cmgbm <- confusionMatrix(predgbm, factor(valid$classe))
+cmgbm
+```
+
+#### Linear Discriminant Analisys
+```{r lda, cache = TRUE}
+fitModlda <- train(classe ~ ., data = train, method = "lda", trControl = control)
+predlda <- predict(fitModlda, valid)
+cmlda <- confusionMatrix(predlda, factor(valid$classe))
+cmlda
+```
+
+### Summary
+```{r summary, cache = TRUE}
+data.frame(accuracy = c(cmrf$overall[[1]], cmgbm$overall[[1]], cmlda$overall[[1]]),
+           oos = c(1 - cmrf$overall[[1]], 1 - cmgbm$overall[[1]], 1 - cmlda$overall[[1]]))
+```
+
+According the result, the best model is **Random Forest** with an accuracy of `r cmrf$overall[[1]]`
+
+### Predicting the test set.
+
+```{r predict, cache = TRUE}
+predtest <- predict(fitModrf, testing)
+print(predtest)
+```
+
+### Appendix
+
+Plotting the models with best rates.
+
+#### Random Forest
+```{r plotrf, cache = TRUE}
+plot(fitModrf)
+```
+
+#### Gradient Boosted Trees
+```{r plotgbm, cache = TRUE}
+plot(fitModgbm)
+```
